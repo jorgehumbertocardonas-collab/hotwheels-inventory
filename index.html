@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hot Wheels Inventory</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #e2e8f0; font-family: system-ui; }
+.header { background: #ef4444; padding: 1rem; text-align: center; }
+.header h1 { color: white; font-size: 1.5rem; }
+.header p { color: #fca5a5; font-size: 0.9rem; margin-top: 0.5rem; }
+.tabs { display: flex; background: #1e293b; border-bottom: 2px solid #475569; overflow-x: auto; }
+.tab-btn { flex-shrink: 0; padding: 0.75rem 1rem; background: transparent; border: none; color: white; cursor: pointer; font-weight: 600; }
+.tab-btn.active { background: #ef4444; }
+.tab-btn.refresh { background: #059669; }
+.container { padding: 1rem; max-width: 1400px; margin: 0 auto; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; background: #1e293b; padding: 1rem; border-radius: 0.5rem; }
+.control-group label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem; }
+.control-group input, .control-group select { width: 100%; padding: 0.5rem; background: #0f172a; border: 1px solid #475569; border-radius: 0.4rem; color: #e2e8f0; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
+.card { background: #1e293b; border-radius: 0.5rem; overflow: hidden; border: 1px solid #475569; cursor: pointer; position: relative; }
+.card-image { width: 100%; height: 100px; background: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+.card-fav { position: absolute; top: 5px; right: 5px; background: #fbbf24; padding: 0.2rem 0.5rem; border-radius: 0.3rem; }
+.card-content { padding: 0.5rem; }
+.card-title { color: #ef4444; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.25rem; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.detail { padding: 1rem; background: #1e293b; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid #475569; }
+.detail h2 { color: #ef4444; margin-bottom: 0.5rem; }
+.image-box { background: #0f172a; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem; text-align: center; border: 2px dashed #475569; }
+.image-box img { max-width: 100%; max-height: 250px; border-radius: 0.4rem; margin-bottom: 1rem; }
+.buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.btn { padding: 0.75rem 1.5rem; border: none; border-radius: 0.4rem; cursor: pointer; font-weight: 600; }
+.btn-upload { background: #ef4444; color: white; }
+.btn-delete { background: #7f1d1d; color: #fca5a5; }
+.btn-fav { background: #fbbf24; color: #000; }
+.btn-back { background: #3b82f6; color: white; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; }
+.field { background: #0f172a; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #475569; }
+.field-label { font-size: 0.7rem; color: #94a3b8; margin-bottom: 0.25rem; }
+.field-value { color: #e2e8f0; font-size: 0.9rem; }
+.notif { position: fixed; top: 20px; right: 20px; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; z-index: 1000; background: #065f46; color: #86efac; }
+.loading { text-align: center; color: #94a3b8; padding: 2rem; }
+#fileInput { display: none; }
+</style>
+</head>
+<body>
+<div class="header">
+<h1>🏁 Hot Wheels Inventory</h1>
+<p>✨ Sincronizado con Google Sheet</p>
+</div>
+
+<div class="tabs">
+<button class="tab-btn active" onclick="showTab(0)">📊 Galería</button>
+<button class="tab-btn" onclick="showTab(1)">📄 Detalle</button>
+<button class="tab-btn" onclick="showTab(2)">📈 Stats</button>
+<button class="tab-btn refresh" onclick="recargarDatos()">🔄 Actualizar</button>
+</div>
+
+<div class="container">
+<div id="tab0" class="tab-content active">
+<div id="loadingMsg" class="loading">⏳ Cargando datos...</div>
+<div class="controls" style="display:none;" id="controls">
+<div class="control-group">
+<label>🔍 Buscar</label>
+<input type="text" id="search" placeholder="Nombre..." onkeyup="filtrar()">
+</div>
+<div class="control-group">
+<label>🎨 Color</label>
+<select id="colorFilter" onchange="filtrar()"><option value="">Todos</option></select>
+</div>
+<div class="control-group">
+<label>🏷️ Marca</label>
+<select id="brandFilter" onchange="filtrar()"><option value="">Todas</option></select>
+</div>
+</div>
+<div id="galleryGrid" class="gallery"></div>
+</div>
+
+<div id="tab1" class="tab-content">
+<button class="btn btn-back" onclick="showTab(0)">⬅️ Volver</button>
+<div class="detail">
+<h2 id="detailName"></h2>
+<p id="detailInfo" style="color: #94a3b8;"></p>
+</div>
+<div class="image-box">
+<div id="imageContainer"></div>
+<button class="btn btn-upload" onclick="document.getElementById('fileInput').click()">📸 Foto</button>
+</div>
+<div class="buttons">
+<button class="btn btn-fav" onclick="marcarFav()">⭐</button>
+<button class="btn btn-delete" id="deleteBtn" onclick="eliminarFoto()" style="display:none;">🗑️</button>
+</div>
+<div id="detailFields" class="fields"></div>
+</div>
+
+<div id="tab2" class="tab-content">
+<div style="background: #1e293b; padding: 1rem; border-radius: 0.5rem;">
+<h2 style="color: #ef4444; margin-bottom: 1rem;">📊 Colección</h2>
+<div id="statsContainer"></div>
+</div>
+</div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" onchange="subirFoto()">
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyUr9nGSqT50HYhDMBXiYx5ZwQLaWmLNahqlL1HlmcIcqgJDH-7ZgtywlIPNN4FBhs2WA/exec";
+
+let DATOS = [];
+let actual = null;
+let fotos = {};
+let favs = {};
+let filtrados = [];
+
+function notif(msg) {
+  const n = document.createElement('div');
+  n.className = 'notif';
+  n.textContent = msg;
+  document.body.appendChild(n);
+  setTimeout(() => n.remove(), 1500);
+}
+
+function cargar() {
+  const f = localStorage.getItem('hw_f');
+  const v = localStorage.getItem('hw_v');
+  if (f) fotos = JSON.parse(f);
+  if (v) favs = JSON.parse(v);
+}
+
+function guardar() {
+  localStorage.setItem('hw_f', JSON.stringify(fotos));
+  localStorage.setItem('hw_v', JSON.stringify(favs));
+}
+
+function recargarDatos() {
+  document.getElementById('loadingMsg').style.display = 'block';
+  document.getElementById('controls').style.display = 'none';
+  document.getElementById('galleryGrid').innerHTML = '';
+  
+  fetch(SCRIPT_URL)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        notif('❌ Error: ' + data.error);
+        return;
+      }
+      DATOS = data.filter(v => v.carName && v.brand);
+      filtrados = [...DATOS];
+      
+      document.getElementById('loadingMsg').style.display = 'none';
+      document.getElementById('controls').style.display = 'grid';
+      
+      poblarFiltros();
+      renderGaleria();
+      notif('✅ ' + DATOS.length + ' vehículos cargados');
+    })
+    .catch(e => {
+      notif('❌ Error: ' + e.message);
+      document.getElementById('loadingMsg').textContent = '❌ Error al cargar datos.';
+      console.error(e);
+    });
+}
+
+function subirFoto() {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file || !actual) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result;
+    fotos[actual.id] = base64;
+    guardar();
+    
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'upload',
+        id: actual.id,
+        foto: base64
+      })
+    }).then(r => r.json()).then(data => {
+      if (data.success) {
+        notif('✅ Foto en Google Drive');
+      }
+    }).catch(e => notif('✅ Foto guardada'));
+    
+    renderDetail();
+    renderGaleria();
+    document.getElementById('fileInput').value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function eliminarFoto() {
+  delete fotos[actual.id];
+  guardar();
+  renderDetail();
+  renderGaleria();
+  notif('✅ Eliminada');
+}
+
+function marcarFav() {
+  if (!actual) return;
+  favs[actual.id] = !favs[actual.id];
+  guardar();
+  renderDetail();
+  renderGaleria();
+  notif('✅ Actualizado');
+}
+
+function renderDetail() {
+  if (!actual) return;
+  document.getElementById('detailName').textContent = actual.carName;
+  document.getElementById('detailInfo').textContent = actual.brand + ' • ' + (actual.color || '-') + ' • ' + (actual.year || '-');
+  
+  const img = document.getElementById('imageContainer');
+  const delBtn = document.getElementById('deleteBtn');
+  
+  if (actual.id in fotos) {
+    img.innerHTML = '<img src="' + fotos[actual.id] + '">';
+    delBtn.style.display = 'block';
+  } else {
+    img.innerHTML = '<div style="font-size: 2rem;">📷</div>';
+    delBtn.style.display = 'none';
+  }
+  
+  const campos = [
+    { l: 'Nombre', v: actual.carName },
+    { l: 'Marca', v: actual.brand },
+    { l: 'Color', v: actual.color || '-' },
+    { l: 'Año', v: actual.year || '-' }
+  ];
+  
+  document.getElementById('detailFields').innerHTML = campos.map(c => 
+    '<div class="field"><div class="field-label">' + c.l + '</div><div class="field-value">' + c.v + '</div></div>'
+  ).join('');
+}
+
+function renderGaleria() {
+  const grid = document.getElementById('galleryGrid');
+  if (filtrados.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:2rem;">Sin resultados</div>';
+    return;
+  }
+  grid.innerHTML = filtrados.map(v => `
+    <div class="card" onclick="abrirDetail(${v.id})">
+      ${v.id in favs ? '<div class="card-fav">⭐</div>' : ''}
+      <div class="card-image">${v.id in fotos ? '<img src="' + fotos[v.id] + '" style="width:100%;height:100%;object-fit:cover;">' : '📷'}</div>
+      <div class="card-content">
+        <div class="card-title">${v.carName}</div>
+        <div style="font-size: 0.7rem; color: #cbd5e1;">🏷️ ${v.brand}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filtrar() {
+  const busca = document.getElementById('search').value.toLowerCase();
+  const color = document.getElementById('colorFilter').value;
+  const marca = document.getElementById('brandFilter').value;
+  filtrados = DATOS.filter(v =>
+    v.carName.toLowerCase().includes(busca) &&
+    (!color || v.color === color) &&
+    (!marca || v.brand === marca)
+  );
+  renderGaleria();
+}
+
+function poblarFiltros() {
+  const colores = [...new Set(DATOS.map(v => v.color).filter(c => c))].sort();
+  const marcas = [...new Set(DATOS.map(v => v.brand))].sort();
+  
+  const colorSel = document.getElementById('colorFilter');
+  const brandSel = document.getElementById('brandFilter');
+  
+  colorSel.innerHTML = '<option value="">Todos</option>';
+  brandSel.innerHTML = '<option value="">Todas</option>';
+  
+  colores.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    colorSel.appendChild(opt);
+  });
+  marcas.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m;
+    brandSel.appendChild(opt);
+  });
+}
+
+function showTab(n) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab' + n).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn')[n].classList.add('active');
+  
+  if (n === 2) {
+    document.getElementById('statsContainer').innerHTML = `
+    <div style="padding: 1rem; background: #0f172a; border-radius: 0.5rem; margin: 0.5rem 0;">
+      <h3 style="color: #ef4444;">📊 Total: ${DATOS.length}</h3>
+    </div>
+    <div style="padding: 1rem; background: #0f172a; border-radius: 0.5rem; margin: 0.5rem 0;">
+      <h3 style="color: #86efac;">📸 Con Foto: ${Object.keys(fotos).length}</h3>
+    </div>
+    <div style="padding: 1rem; background: #0f172a; border-radius: 0.5rem; margin: 0.5rem 0;">
+      <h3 style="color: #fbbf24;">⭐ Favoritos: ${Object.keys(favs).length}</h3>
+    </div>
+    `;
+  }
+}
+
+function abrirDetail(id) {
+  actual = DATOS.find(v => v.id === id);
+  renderDetail();
+  showTab(1);
+}
+
+window.addEventListener('load', function() {
+  cargar();
+  recargarDatos();
+});
+</script>
+</body>
+</html>
